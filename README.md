@@ -1,20 +1,13 @@
+Aims
+----
+
+The aims of this study were to evaluate the test-retestreliability, and validity (assessed by the relationship to V<sub>T</sub>) of the Standardised Uptake Value Ratio (SUVR) and Distribution Volume Ratio (DVR) of \[^11^C\]PBR28 in the frontal cortex (FC), using the whole brain (WB) and cerebellum (CBL) as reference regions (i.e. denominators).
+
+Load Libraries
+--------------
+
 ``` r
 library(tidyverse)
-```
-
-    ## Loading tidyverse: ggplot2
-    ## Loading tidyverse: tibble
-    ## Loading tidyverse: tidyr
-    ## Loading tidyverse: readr
-    ## Loading tidyverse: purrr
-    ## Loading tidyverse: dplyr
-
-    ## Conflicts with tidy packages ----------------------------------------------
-
-    ## filter(): dplyr, stats
-    ## lag():    dplyr, stats
-
-``` r
 library(stringr)
 library(kinfitr)
 ```
@@ -38,16 +31,77 @@ demog %>%
   pander::pandoc.table(digits=3, caption = "Summary Statistics", split.tables=Inf)
 ```
 
-    ## 
-    ## -------------------------------------------------------------------------------------------------------------------------------
-    ##           &nbsp;             vars   n    mean    sd    median   trimmed   mad    min   max   range    skew    kurtosis    se   
-    ## --------------------------- ------ ---- ------ ------ -------- --------- ------ ----- ----- ------- -------- ---------- -------
-    ##           **Age**             1     24   23.9   2.99     24      23.8     3.71   20    29      9     0.226     -1.32     0.611 
-    ## 
-    ##  **InjectedRadioactivity**    2     24   395    51.7    403       401     51.9   248   462    214    -0.997    0.722     10.6  
-    ## -------------------------------------------------------------------------------------------------------------------------------
-    ## 
-    ## Table: Summary Statistics
+<table>
+<caption>Summary Statistics</caption>
+<colgroup>
+<col width="22%" />
+<col width="5%" />
+<col width="3%" />
+<col width="5%" />
+<col width="5%" />
+<col width="7%" />
+<col width="7%" />
+<col width="5%" />
+<col width="4%" />
+<col width="4%" />
+<col width="6%" />
+<col width="7%" />
+<col width="8%" />
+<col width="5%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="center"> </th>
+<th align="center">vars</th>
+<th align="center">n</th>
+<th align="center">mean</th>
+<th align="center">sd</th>
+<th align="center">median</th>
+<th align="center">trimmed</th>
+<th align="center">mad</th>
+<th align="center">min</th>
+<th align="center">max</th>
+<th align="center">range</th>
+<th align="center">skew</th>
+<th align="center">kurtosis</th>
+<th align="center">se</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center"><strong>Age</strong></td>
+<td align="center">1</td>
+<td align="center">24</td>
+<td align="center">23.9</td>
+<td align="center">2.99</td>
+<td align="center">24</td>
+<td align="center">23.8</td>
+<td align="center">3.71</td>
+<td align="center">20</td>
+<td align="center">29</td>
+<td align="center">9</td>
+<td align="center">0.226</td>
+<td align="center">-1.32</td>
+<td align="center">0.611</td>
+</tr>
+<tr class="even">
+<td align="center"><strong>InjectedRadioactivity</strong></td>
+<td align="center">2</td>
+<td align="center">24</td>
+<td align="center">395</td>
+<td align="center">51.7</td>
+<td align="center">403</td>
+<td align="center">401</td>
+<td align="center">51.9</td>
+<td align="center">248</td>
+<td align="center">462</td>
+<td align="center">214</td>
+<td align="center">-0.997</td>
+<td align="center">0.722</td>
+<td align="center">10.6</td>
+</tr>
+</tbody>
+</table>
 
 ``` r
 counts <- demog %>%
@@ -56,16 +110,33 @@ counts <- demog %>%
 pander::pandoc.table(table(counts$Gender, counts$Genotype), caption = "Gender and Genotype")
 ```
 
-    ## 
-    ## --------------------
-    ##  &nbsp;   HAB   MAB 
-    ## -------- ----- -----
-    ##  **F**     2     4  
-    ## 
-    ##  **M**     4     2  
-    ## --------------------
-    ## 
-    ## Table: Gender and Genotype
+<table style="width:29%;">
+<caption>Gender and Genotype</caption>
+<colgroup>
+<col width="12%" />
+<col width="8%" />
+<col width="8%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="center"> </th>
+<th align="center">HAB</th>
+<th align="center">MAB</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center"><strong>F</strong></td>
+<td align="center">2</td>
+<td align="center">4</td>
+</tr>
+<tr class="even">
+<td align="center"><strong>M</strong></td>
+<td align="center">4</td>
+<td align="center">2</td>
+</tr>
+</tbody>
+</table>
 
 Read in the TACs and the blood data
 -----------------------------------
@@ -85,8 +156,6 @@ datdf <- map(dat, 'tacdf') %>%
          input=map(dat, 'input')) %>%
   inner_join(demog)
 ```
-
-    ## Joining, by = c("PET", "Subjname", "PETNo")
 
 Fit the delay
 -------------
@@ -117,8 +186,6 @@ longdat <- datdf %>%
   select(PET, Subjname, PETNo, input, WB_delay, bodyMass, injRad) %>%
   inner_join(tacs)
 ```
-
-    ## Joining, by = c("PET", "Subjname", "PETNo")
 
 Define functions for fitting the models
 ---------------------------------------
@@ -233,27 +300,23 @@ trtout <- trtdata %>%
   group_by(Region, Measure) %>%
   do(trt = granviller::trt(.$`1`, .$`2`)$tidy) %>%
   unnest() %>%
+  select(-se, -skew, -kurtosis, -md, -avgpercchange) %>%
   arrange(Measure, Region)
 
 pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest Analysis for HABs and MABs together')
 ```
 
-<table style="width:100%;">
+<table style="width:89%;">
 <caption>Test-Retest Analysis for HABs and MABs together</caption>
 <colgroup>
-<col width="7%" />
+<col width="12%" />
+<col width="15%" />
 <col width="9%" />
-<col width="6%" />
-<col width="7%" />
-<col width="7%" />
-<col width="7%" />
-<col width="7%" />
+<col width="11%" />
+<col width="11%" />
 <col width="9%" />
-<col width="6%" />
-<col width="6%" />
-<col width="7%" />
-<col width="5%" />
-<col width="13%" />
+<col width="9%" />
+<col width="9%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -262,14 +325,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <th align="center">mean</th>
 <th align="center">sd</th>
 <th align="center">cov</th>
-<th align="center">se</th>
-<th align="center">skew</th>
-<th align="center">kurtosis</th>
 <th align="center">icc</th>
 <th align="center">aapd</th>
 <th align="center">sem</th>
-<th align="center">md</th>
-<th align="center">avgpercchange</th>
 </tr>
 </thead>
 <tbody>
@@ -279,14 +337,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.98</td>
 <td align="center">0.3</td>
 <td align="center">0.3</td>
-<td align="center">0.063</td>
-<td align="center">0.5</td>
-<td align="center">-1</td>
 <td align="center">0.9</td>
 <td align="center">10</td>
 <td align="center">0.092</td>
-<td align="center">26</td>
-<td align="center">-3.3</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -294,14 +347,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">0.27</td>
 <td align="center">0.3</td>
-<td align="center">0.058</td>
-<td align="center">0.57</td>
-<td align="center">-0.92</td>
 <td align="center">0.88</td>
 <td align="center">13</td>
 <td align="center">0.097</td>
-<td align="center">29</td>
-<td align="center">-4.3</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -309,14 +357,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.95</td>
 <td align="center">0.059</td>
 <td align="center">0.062</td>
-<td align="center">0.013</td>
-<td align="center">-0.72</td>
-<td align="center">0.24</td>
 <td align="center">0.63</td>
 <td align="center">4.4</td>
 <td align="center">0.036</td>
-<td align="center">10</td>
-<td align="center">-1</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -324,14 +367,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.04</td>
 <td align="center">0.039</td>
-<td align="center">0.0085</td>
-<td align="center">-0.24</td>
-<td align="center">-1.2</td>
 <td align="center">0.89</td>
 <td align="center">1.5</td>
 <td align="center">0.013</td>
-<td align="center">3.5</td>
-<td align="center">0.25</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -339,14 +377,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.89</td>
 <td align="center">0.27</td>
 <td align="center">0.31</td>
-<td align="center">0.058</td>
-<td align="center">0.43</td>
-<td align="center">-0.92</td>
 <td align="center">0.84</td>
 <td align="center">16</td>
 <td align="center">0.11</td>
-<td align="center">33</td>
-<td align="center">-5.7</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -354,14 +387,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">0.27</td>
 <td align="center">0.29</td>
-<td align="center">0.057</td>
-<td align="center">0.48</td>
-<td align="center">-0.85</td>
 <td align="center">0.89</td>
 <td align="center">11</td>
 <td align="center">0.089</td>
-<td align="center">27</td>
-<td align="center">-4.4</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -369,14 +397,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.2</td>
 <td align="center">0.37</td>
 <td align="center">0.32</td>
-<td align="center">0.08</td>
-<td align="center">0.45</td>
-<td align="center">-0.84</td>
 <td align="center">0.87</td>
 <td align="center">15</td>
 <td align="center">0.13</td>
-<td align="center">31</td>
-<td align="center">-4.8</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -384,14 +407,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.9</td>
 <td align="center">0.24</td>
 <td align="center">0.27</td>
-<td align="center">0.052</td>
-<td align="center">0.55</td>
-<td align="center">-0.74</td>
 <td align="center">0.86</td>
 <td align="center">13</td>
 <td align="center">0.092</td>
-<td align="center">28</td>
-<td align="center">-4.6</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -399,14 +417,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">80</td>
 <td align="center">17</td>
 <td align="center">0.21</td>
-<td align="center">3.6</td>
-<td align="center">0.53</td>
-<td align="center">-0.86</td>
 <td align="center">0.83</td>
 <td align="center">11</td>
 <td align="center">7.1</td>
-<td align="center">24</td>
-<td align="center">-5.6</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -414,14 +427,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">78</td>
 <td align="center">17</td>
 <td align="center">0.21</td>
-<td align="center">3.5</td>
-<td align="center">0.44</td>
-<td align="center">-0.69</td>
 <td align="center">0.8</td>
 <td align="center">12</td>
 <td align="center">7.5</td>
-<td align="center">26</td>
-<td align="center">-6.2</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -429,14 +437,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.98</td>
 <td align="center">0.045</td>
 <td align="center">0.046</td>
-<td align="center">0.0097</td>
-<td align="center">-0.29</td>
-<td align="center">-1</td>
 <td align="center">0.77</td>
 <td align="center">2.5</td>
 <td align="center">0.022</td>
-<td align="center">6.1</td>
-<td align="center">-0.58</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -444,14 +447,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.1</td>
 <td align="center">0.039</td>
 <td align="center">0.036</td>
-<td align="center">0.0082</td>
-<td align="center">-0.3</td>
-<td align="center">-1.2</td>
 <td align="center">0.9</td>
 <td align="center">1.3</td>
 <td align="center">0.012</td>
-<td align="center">3.1</td>
-<td align="center">0.079</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -459,14 +457,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">76</td>
 <td align="center">17</td>
 <td align="center">0.22</td>
-<td align="center">3.6</td>
-<td align="center">0.23</td>
-<td align="center">-0.79</td>
 <td align="center">0.77</td>
 <td align="center">14</td>
 <td align="center">8.1</td>
-<td align="center">29</td>
-<td align="center">-6.3</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -474,14 +467,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">75</td>
 <td align="center">15</td>
 <td align="center">0.2</td>
-<td align="center">3.3</td>
-<td align="center">0.5</td>
-<td align="center">-0.53</td>
 <td align="center">0.79</td>
 <td align="center">12</td>
 <td align="center">7</td>
-<td align="center">26</td>
-<td align="center">-6.3</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -489,14 +477,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">92</td>
 <td align="center">20</td>
 <td align="center">0.21</td>
-<td align="center">4.2</td>
-<td align="center">0.43</td>
-<td align="center">-0.36</td>
 <td align="center">0.74</td>
 <td align="center">14</td>
 <td align="center">10</td>
-<td align="center">30</td>
-<td align="center">-6.5</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -504,14 +487,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">72</td>
 <td align="center">14</td>
 <td align="center">0.19</td>
-<td align="center">3</td>
-<td align="center">0.45</td>
-<td align="center">-0.44</td>
 <td align="center">0.75</td>
 <td align="center">13</td>
 <td align="center">7</td>
-<td align="center">27</td>
-<td align="center">-6.2</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -519,14 +497,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3</td>
 <td align="center">1.7</td>
 <td align="center">0.55</td>
-<td align="center">0.35</td>
-<td align="center">1.2</td>
-<td align="center">0.61</td>
 <td align="center">0.93</td>
 <td align="center">21</td>
 <td align="center">0.45</td>
-<td align="center">42</td>
-<td align="center">16</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -534,14 +507,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.9</td>
 <td align="center">1.5</td>
 <td align="center">0.53</td>
-<td align="center">0.33</td>
-<td align="center">1</td>
-<td align="center">0.26</td>
 <td align="center">0.93</td>
 <td align="center">19</td>
 <td align="center">0.42</td>
-<td align="center">40</td>
-<td align="center">13</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -549,14 +517,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.98</td>
 <td align="center">0.07</td>
 <td align="center">0.071</td>
-<td align="center">0.015</td>
-<td align="center">-0.15</td>
-<td align="center">-0.57</td>
 <td align="center">0.54</td>
 <td align="center">4.7</td>
 <td align="center">0.048</td>
-<td align="center">13</td>
-<td align="center">-2.2</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -564,14 +527,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.037</td>
 <td align="center">0.036</td>
-<td align="center">0.0079</td>
-<td align="center">-0.13</td>
-<td align="center">-1.3</td>
 <td align="center">0.52</td>
 <td align="center">3</td>
 <td align="center">0.026</td>
-<td align="center">6.9</td>
-<td align="center">-0.98</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -579,14 +537,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.8</td>
 <td align="center">1.5</td>
 <td align="center">0.53</td>
-<td align="center">0.31</td>
-<td align="center">1.3</td>
-<td align="center">1.1</td>
 <td align="center">0.93</td>
 <td align="center">19</td>
 <td align="center">0.39</td>
-<td align="center">40</td>
-<td align="center">13</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -594,14 +547,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.9</td>
 <td align="center">1.6</td>
 <td align="center">0.54</td>
-<td align="center">0.34</td>
-<td align="center">1.2</td>
-<td align="center">0.69</td>
 <td align="center">0.94</td>
 <td align="center">19</td>
 <td align="center">0.39</td>
-<td align="center">37</td>
-<td align="center">15</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -609,14 +557,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.8</td>
 <td align="center">2.3</td>
 <td align="center">0.6</td>
-<td align="center">0.49</td>
-<td align="center">1.1</td>
-<td align="center">0.42</td>
 <td align="center">0.93</td>
 <td align="center">23</td>
 <td align="center">0.61</td>
-<td align="center">44</td>
-<td align="center">15</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -624,14 +567,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.8</td>
 <td align="center">1.5</td>
 <td align="center">0.53</td>
-<td align="center">0.32</td>
-<td align="center">1.1</td>
-<td align="center">0.56</td>
 <td align="center">0.93</td>
 <td align="center">19</td>
 <td align="center">0.4</td>
-<td align="center">39</td>
-<td align="center">14</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -639,14 +577,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.4</td>
 <td align="center">1.8</td>
 <td align="center">0.53</td>
-<td align="center">0.38</td>
-<td align="center">1.3</td>
-<td align="center">0.93</td>
 <td align="center">0.94</td>
 <td align="center">18</td>
 <td align="center">0.45</td>
-<td align="center">37</td>
-<td align="center">13</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -654,14 +587,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.1</td>
 <td align="center">1.6</td>
 <td align="center">0.51</td>
-<td align="center">0.34</td>
-<td align="center">1.2</td>
-<td align="center">0.62</td>
 <td align="center">0.93</td>
 <td align="center">18</td>
 <td align="center">0.43</td>
-<td align="center">38</td>
-<td align="center">12</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -669,14 +597,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">0.074</td>
 <td align="center">0.079</td>
-<td align="center">0.016</td>
-<td align="center">-0.33</td>
-<td align="center">-0.1</td>
 <td align="center">0.62</td>
 <td align="center">6.1</td>
 <td align="center">0.045</td>
-<td align="center">14</td>
-<td align="center">-1.1</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -684,14 +607,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.035</td>
 <td align="center">0.034</td>
-<td align="center">0.0074</td>
-<td align="center">0.013</td>
-<td align="center">-1.2</td>
 <td align="center">0.86</td>
 <td align="center">1.6</td>
 <td align="center">0.013</td>
-<td align="center">3.5</td>
-<td align="center">0.077</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -699,14 +617,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3</td>
 <td align="center">1.6</td>
 <td align="center">0.52</td>
-<td align="center">0.33</td>
-<td align="center">1.1</td>
-<td align="center">0.6</td>
 <td align="center">0.93</td>
 <td align="center">18</td>
 <td align="center">0.42</td>
-<td align="center">39</td>
-<td align="center">9.9</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -714,14 +627,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.2</td>
 <td align="center">1.6</td>
 <td align="center">0.52</td>
-<td align="center">0.35</td>
-<td align="center">1.2</td>
-<td align="center">0.93</td>
 <td align="center">0.94</td>
 <td align="center">17</td>
 <td align="center">0.39</td>
-<td align="center">34</td>
-<td align="center">12</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -729,14 +637,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">4.1</td>
 <td align="center">2.4</td>
 <td align="center">0.58</td>
-<td align="center">0.51</td>
-<td align="center">1.2</td>
-<td align="center">0.57</td>
 <td align="center">0.93</td>
 <td align="center">21</td>
 <td align="center">0.61</td>
-<td align="center">41</td>
-<td align="center">12</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -744,14 +647,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.1</td>
 <td align="center">1.6</td>
 <td align="center">0.51</td>
-<td align="center">0.33</td>
-<td align="center">1.2</td>
-<td align="center">0.79</td>
 <td align="center">0.93</td>
 <td align="center">18</td>
 <td align="center">0.42</td>
-<td align="center">38</td>
-<td align="center">12</td>
 </tr>
 </tbody>
 </table>
@@ -772,27 +670,23 @@ trtout <- trtdata %>%
   group_by(Region, Measure) %>%
   do(trt = granviller::trt(.$`1`, .$`2`)$tidy) %>%
   unnest() %>%
+  select(-se, -skew, -kurtosis, -md, -avgpercchange) %>%
   arrange(Measure, Region)
 
 pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest Analysis for HABs')
 ```
 
-<table style="width:100%;">
+<table style="width:89%;">
 <caption>Test-Retest Analysis for HABs</caption>
 <colgroup>
-<col width="7%" />
+<col width="12%" />
+<col width="15%" />
 <col width="9%" />
-<col width="6%" />
-<col width="7%" />
-<col width="7%" />
-<col width="7%" />
-<col width="7%" />
+<col width="11%" />
+<col width="11%" />
 <col width="9%" />
-<col width="6%" />
-<col width="6%" />
-<col width="7%" />
-<col width="5%" />
-<col width="13%" />
+<col width="9%" />
+<col width="9%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -801,14 +695,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <th align="center">mean</th>
 <th align="center">sd</th>
 <th align="center">cov</th>
-<th align="center">se</th>
-<th align="center">skew</th>
-<th align="center">kurtosis</th>
 <th align="center">icc</th>
 <th align="center">aapd</th>
 <th align="center">sem</th>
-<th align="center">md</th>
-<th align="center">avgpercchange</th>
 </tr>
 </thead>
 <tbody>
@@ -818,14 +707,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.1</td>
 <td align="center">0.27</td>
 <td align="center">0.24</td>
-<td align="center">0.086</td>
-<td align="center">0.2</td>
-<td align="center">-1.3</td>
 <td align="center">0.8</td>
 <td align="center">13</td>
 <td align="center">0.12</td>
-<td align="center">29</td>
-<td align="center">-6</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -833,14 +717,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.1</td>
 <td align="center">0.24</td>
 <td align="center">0.22</td>
-<td align="center">0.075</td>
-<td align="center">0.45</td>
-<td align="center">-1.2</td>
 <td align="center">0.76</td>
 <td align="center">13</td>
 <td align="center">0.12</td>
-<td align="center">30</td>
-<td align="center">-3.8</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -848,14 +727,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.94</td>
 <td align="center">0.071</td>
 <td align="center">0.075</td>
-<td align="center">0.022</td>
-<td align="center">-1</td>
-<td align="center">-0.27</td>
 <td align="center">0.85</td>
 <td align="center">3.2</td>
 <td align="center">0.027</td>
-<td align="center">8.1</td>
-<td align="center">2.2</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -863,14 +737,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.019</td>
 <td align="center">0.019</td>
-<td align="center">0.0062</td>
-<td align="center">0.61</td>
-<td align="center">-0.95</td>
 <td align="center">0.6</td>
 <td align="center">1.3</td>
 <td align="center">0.012</td>
-<td align="center">3.2</td>
-<td align="center">0.26</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -878,14 +747,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.24</td>
 <td align="center">0.23</td>
-<td align="center">0.076</td>
-<td align="center">0.17</td>
-<td align="center">-0.87</td>
 <td align="center">0.74</td>
 <td align="center">15</td>
 <td align="center">0.12</td>
-<td align="center">33</td>
-<td align="center">-7</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -893,14 +757,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.1</td>
 <td align="center">0.23</td>
 <td align="center">0.22</td>
-<td align="center">0.073</td>
-<td align="center">0.43</td>
-<td align="center">-0.94</td>
 <td align="center">0.77</td>
 <td align="center">13</td>
 <td align="center">0.11</td>
-<td align="center">28</td>
-<td align="center">-6.2</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -908,14 +767,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.4</td>
 <td align="center">0.32</td>
 <td align="center">0.24</td>
-<td align="center">0.1</td>
-<td align="center">0.35</td>
-<td align="center">-0.86</td>
 <td align="center">0.78</td>
 <td align="center">14</td>
 <td align="center">0.15</td>
-<td align="center">31</td>
-<td align="center">-6.4</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -923,14 +777,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.22</td>
 <td align="center">0.21</td>
-<td align="center">0.069</td>
-<td align="center">0.44</td>
-<td align="center">-1</td>
 <td align="center">0.78</td>
 <td align="center">12</td>
 <td align="center">0.1</td>
-<td align="center">28</td>
-<td align="center">-4</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -938,14 +787,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">89</td>
 <td align="center">15</td>
 <td align="center">0.16</td>
-<td align="center">4.6</td>
-<td align="center">0.44</td>
-<td align="center">-1</td>
 <td align="center">0.69</td>
 <td align="center">11</td>
 <td align="center">8.1</td>
-<td align="center">25</td>
-<td align="center">-7.1</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -953,14 +797,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">87</td>
 <td align="center">12</td>
 <td align="center">0.14</td>
-<td align="center">3.9</td>
-<td align="center">0.72</td>
-<td align="center">-0.51</td>
 <td align="center">0.65</td>
 <td align="center">9.9</td>
 <td align="center">7.3</td>
-<td align="center">23</td>
-<td align="center">-5.9</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -968,14 +807,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.99</td>
 <td align="center">0.056</td>
 <td align="center">0.057</td>
-<td align="center">0.018</td>
-<td align="center">-0.47</td>
-<td align="center">-1.3</td>
 <td align="center">0.96</td>
 <td align="center">1.3</td>
 <td align="center">0.011</td>
-<td align="center">3.1</td>
-<td align="center">1.3</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -983,14 +817,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.1</td>
 <td align="center">0.02</td>
 <td align="center">0.018</td>
-<td align="center">0.0062</td>
-<td align="center">0.77</td>
-<td align="center">-0.59</td>
 <td align="center">0.7</td>
 <td align="center">1.2</td>
 <td align="center">0.011</td>
-<td align="center">2.7</td>
-<td align="center">-0.19</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -998,14 +827,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">85</td>
 <td align="center">13</td>
 <td align="center">0.15</td>
-<td align="center">4</td>
-<td align="center">0.49</td>
-<td align="center">-0.65</td>
 <td align="center">0.62</td>
 <td align="center">11</td>
 <td align="center">7.7</td>
-<td align="center">25</td>
-<td align="center">-6.6</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1013,14 +837,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">83</td>
 <td align="center">13</td>
 <td align="center">0.15</td>
-<td align="center">4</td>
-<td align="center">0.78</td>
-<td align="center">-0.46</td>
 <td align="center">0.63</td>
 <td align="center">11</td>
 <td align="center">7.7</td>
-<td align="center">26</td>
-<td align="center">-7.2</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1028,14 +847,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">100</td>
 <td align="center">16</td>
 <td align="center">0.16</td>
-<td align="center">5</td>
-<td align="center">0.7</td>
-<td align="center">-0.4</td>
 <td align="center">0.71</td>
 <td align="center">9.6</td>
 <td align="center">8.6</td>
-<td align="center">24</td>
-<td align="center">-5.8</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1043,14 +857,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">79</td>
 <td align="center">12</td>
 <td align="center">0.15</td>
-<td align="center">3.7</td>
-<td align="center">0.69</td>
-<td align="center">-0.48</td>
 <td align="center">0.68</td>
 <td align="center">10</td>
 <td align="center">6.6</td>
-<td align="center">23</td>
-<td align="center">-5.7</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -1058,14 +867,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">4</td>
 <td align="center">1.8</td>
 <td align="center">0.44</td>
-<td align="center">0.56</td>
-<td align="center">0.86</td>
-<td align="center">-0.99</td>
 <td align="center">0.91</td>
 <td align="center">19</td>
 <td align="center">0.54</td>
-<td align="center">37</td>
-<td align="center">7.2</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1073,14 +877,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.9</td>
 <td align="center">1.6</td>
 <td align="center">0.42</td>
-<td align="center">0.51</td>
-<td align="center">0.73</td>
-<td align="center">-1.1</td>
 <td align="center">0.89</td>
 <td align="center">21</td>
 <td align="center">0.54</td>
-<td align="center">39</td>
-<td align="center">8.9</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1088,14 +887,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.97</td>
 <td align="center">0.079</td>
 <td align="center">0.081</td>
-<td align="center">0.025</td>
-<td align="center">-0.6</td>
-<td align="center">-1.1</td>
 <td align="center">0.87</td>
 <td align="center">3.4</td>
 <td align="center">0.028</td>
-<td align="center">7.9</td>
-<td align="center">1.8</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1103,14 +897,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.1</td>
 <td align="center">0.031</td>
 <td align="center">0.03</td>
-<td align="center">0.0099</td>
-<td align="center">-0.24</td>
-<td align="center">-1.2</td>
 <td align="center">0.33</td>
 <td align="center">3.1</td>
 <td align="center">0.026</td>
-<td align="center">6.8</td>
-<td align="center">-1</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1118,14 +907,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.6</td>
 <td align="center">1.6</td>
 <td align="center">0.45</td>
-<td align="center">0.52</td>
-<td align="center">0.83</td>
-<td align="center">-0.98</td>
 <td align="center">0.92</td>
 <td align="center">19</td>
 <td align="center">0.46</td>
-<td align="center">35</td>
-<td align="center">7.9</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1133,14 +917,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.9</td>
 <td align="center">1.7</td>
 <td align="center">0.44</td>
-<td align="center">0.54</td>
-<td align="center">0.89</td>
-<td align="center">-0.92</td>
 <td align="center">0.92</td>
 <td align="center">18</td>
 <td align="center">0.48</td>
-<td align="center">34</td>
-<td align="center">7.6</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1148,14 +927,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">5.1</td>
 <td align="center">2.5</td>
 <td align="center">0.49</td>
-<td align="center">0.79</td>
-<td align="center">0.75</td>
-<td align="center">-1</td>
 <td align="center">0.91</td>
 <td align="center">24</td>
 <td align="center">0.76</td>
-<td align="center">41</td>
-<td align="center">7.5</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1163,14 +937,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.7</td>
 <td align="center">1.6</td>
 <td align="center">0.44</td>
-<td align="center">0.51</td>
-<td align="center">0.78</td>
-<td align="center">-1</td>
 <td align="center">0.91</td>
 <td align="center">20</td>
 <td align="center">0.5</td>
-<td align="center">37</td>
-<td align="center">9.9</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -1178,14 +947,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">4.5</td>
 <td align="center">1.9</td>
 <td align="center">0.43</td>
-<td align="center">0.61</td>
-<td align="center">0.92</td>
-<td align="center">-0.92</td>
 <td align="center">0.92</td>
 <td align="center">17</td>
 <td align="center">0.55</td>
-<td align="center">34</td>
-<td align="center">7</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1193,14 +957,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">4.1</td>
 <td align="center">1.7</td>
 <td align="center">0.42</td>
-<td align="center">0.55</td>
-<td align="center">0.79</td>
-<td align="center">-1.1</td>
 <td align="center">0.9</td>
 <td align="center">20</td>
 <td align="center">0.54</td>
-<td align="center">37</td>
-<td align="center">7.9</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1208,14 +967,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">0.078</td>
 <td align="center">0.085</td>
-<td align="center">0.025</td>
-<td align="center">-0.86</td>
-<td align="center">-0.47</td>
 <td align="center">0.79</td>
 <td align="center">4.8</td>
 <td align="center">0.036</td>
-<td align="center">11</td>
-<td align="center">0.94</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1223,14 +977,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.026</td>
 <td align="center">0.026</td>
-<td align="center">0.0084</td>
-<td align="center">0.53</td>
-<td align="center">-1.2</td>
 <td align="center">0.79</td>
 <td align="center">1.6</td>
 <td align="center">0.012</td>
-<td align="center">3.3</td>
-<td align="center">0.23</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1238,14 +987,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3.9</td>
 <td align="center">1.7</td>
 <td align="center">0.43</td>
-<td align="center">0.53</td>
-<td align="center">0.75</td>
-<td align="center">-1</td>
 <td align="center">0.91</td>
 <td align="center">22</td>
 <td align="center">0.52</td>
-<td align="center">36</td>
-<td align="center">3.8</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1253,14 +997,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">4.1</td>
 <td align="center">1.8</td>
 <td align="center">0.43</td>
-<td align="center">0.56</td>
-<td align="center">0.93</td>
-<td align="center">-0.87</td>
 <td align="center">0.93</td>
 <td align="center">17</td>
 <td align="center">0.47</td>
-<td align="center">32</td>
-<td align="center">5.6</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1268,14 +1007,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">5.4</td>
 <td align="center">2.6</td>
 <td align="center">0.48</td>
-<td align="center">0.83</td>
-<td align="center">0.76</td>
-<td align="center">-1</td>
 <td align="center">0.91</td>
 <td align="center">24</td>
 <td align="center">0.77</td>
-<td align="center">39</td>
-<td align="center">4.1</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1283,14 +1017,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">4</td>
 <td align="center">1.7</td>
 <td align="center">0.43</td>
-<td align="center">0.54</td>
-<td align="center">0.8</td>
-<td align="center">-1</td>
 <td align="center">0.91</td>
 <td align="center">20</td>
 <td align="center">0.53</td>
-<td align="center">37</td>
-<td align="center">7.7</td>
 </tr>
 </tbody>
 </table>
@@ -1304,27 +1033,23 @@ trtout <- trtdata %>%
   group_by(Region, Measure) %>%
   do(trt = granviller::trt(.$`1`, .$`2`)$tidy) %>%
   unnest() %>%
+  select(-se, -skew, -kurtosis, -md, -avgpercchange) %>%
   arrange(Measure, Region)
 
 pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest Analysis for MABs')
 ```
 
-<table style="width:100%;">
+<table style="width:89%;">
 <caption>Test-Retest Analysis for MABs</caption>
 <colgroup>
-<col width="7%" />
+<col width="12%" />
+<col width="15%" />
 <col width="9%" />
-<col width="6%" />
-<col width="7%" />
-<col width="7%" />
-<col width="7%" />
-<col width="7%" />
+<col width="11%" />
+<col width="11%" />
 <col width="9%" />
-<col width="6%" />
-<col width="6%" />
-<col width="7%" />
-<col width="5%" />
-<col width="13%" />
+<col width="9%" />
+<col width="9%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -1333,14 +1058,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <th align="center">mean</th>
 <th align="center">sd</th>
 <th align="center">cov</th>
-<th align="center">se</th>
-<th align="center">skew</th>
-<th align="center">kurtosis</th>
 <th align="center">icc</th>
 <th align="center">aapd</th>
 <th align="center">sem</th>
-<th align="center">md</th>
-<th align="center">avgpercchange</th>
 </tr>
 </thead>
 <tbody>
@@ -1350,14 +1070,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.84</td>
 <td align="center">0.25</td>
 <td align="center">0.3</td>
-<td align="center">0.072</td>
-<td align="center">1</td>
-<td align="center">-0.34</td>
 <td align="center">0.95</td>
 <td align="center">7.3</td>
 <td align="center">0.053</td>
-<td align="center">17</td>
-<td align="center">-1.1</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1365,14 +1080,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.8</td>
 <td align="center">0.24</td>
 <td align="center">0.31</td>
-<td align="center">0.071</td>
-<td align="center">1.2</td>
-<td align="center">0.077</td>
 <td align="center">0.91</td>
 <td align="center">13</td>
 <td align="center">0.073</td>
-<td align="center">25</td>
-<td align="center">-4.8</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1380,14 +1090,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.95</td>
 <td align="center">0.05</td>
 <td align="center">0.052</td>
-<td align="center">0.014</td>
-<td align="center">0.38</td>
-<td align="center">-1.4</td>
 <td align="center">0.32</td>
 <td align="center">5.4</td>
 <td align="center">0.041</td>
-<td align="center">12</td>
-<td align="center">-3.7</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1395,14 +1100,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.041</td>
 <td align="center">0.04</td>
-<td align="center">0.012</td>
-<td align="center">0.59</td>
-<td align="center">-1</td>
 <td align="center">0.89</td>
 <td align="center">1.6</td>
 <td align="center">0.013</td>
-<td align="center">3.6</td>
-<td align="center">0.23</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1410,14 +1110,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.77</td>
 <td align="center">0.24</td>
 <td align="center">0.31</td>
-<td align="center">0.069</td>
-<td align="center">0.94</td>
-<td align="center">-0.3</td>
 <td align="center">0.87</td>
 <td align="center">16</td>
 <td align="center">0.086</td>
-<td align="center">31</td>
-<td align="center">-4.7</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1425,14 +1120,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.8</td>
 <td align="center">0.24</td>
 <td align="center">0.3</td>
-<td align="center">0.069</td>
-<td align="center">0.98</td>
-<td align="center">-0.32</td>
 <td align="center">0.93</td>
 <td align="center">9.9</td>
 <td align="center">0.062</td>
-<td align="center">21</td>
-<td align="center">-2.9</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1440,14 +1130,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.36</td>
 <td align="center">0.35</td>
-<td align="center">0.1</td>
-<td align="center">0.92</td>
-<td align="center">-0.32</td>
 <td align="center">0.9</td>
 <td align="center">16</td>
 <td align="center">0.11</td>
-<td align="center">30</td>
-<td align="center">-3.5</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1455,14 +1140,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.79</td>
 <td align="center">0.22</td>
 <td align="center">0.27</td>
-<td align="center">0.062</td>
-<td align="center">0.99</td>
-<td align="center">-0.12</td>
 <td align="center">0.87</td>
 <td align="center">13</td>
 <td align="center">0.077</td>
-<td align="center">27</td>
-<td align="center">-5.1</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -1470,14 +1150,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">72</td>
 <td align="center">16</td>
 <td align="center">0.21</td>
-<td align="center">4.5</td>
-<td align="center">1.1</td>
-<td align="center">-0.021</td>
 <td align="center">0.86</td>
 <td align="center">11</td>
 <td align="center">5.8</td>
-<td align="center">22</td>
-<td align="center">-4.3</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1485,14 +1160,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">71</td>
 <td align="center">16</td>
 <td align="center">0.23</td>
-<td align="center">4.8</td>
-<td align="center">1.1</td>
-<td align="center">0.18</td>
 <td align="center">0.8</td>
 <td align="center">14</td>
 <td align="center">7.4</td>
-<td align="center">29</td>
-<td align="center">-6.4</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1500,14 +1170,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.98</td>
 <td align="center">0.037</td>
 <td align="center">0.038</td>
-<td align="center">0.011</td>
-<td align="center">0.086</td>
-<td align="center">-1.6</td>
 <td align="center">0.45</td>
 <td align="center">3.5</td>
 <td align="center">0.027</td>
-<td align="center">7.7</td>
-<td align="center">-2.1</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1515,14 +1180,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1.1</td>
 <td align="center">0.038</td>
 <td align="center">0.036</td>
-<td align="center">0.011</td>
-<td align="center">0.39</td>
-<td align="center">-1.5</td>
 <td align="center">0.89</td>
 <td align="center">1.4</td>
 <td align="center">0.013</td>
-<td align="center">3.4</td>
-<td align="center">0.3</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1530,14 +1190,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">69</td>
 <td align="center">17</td>
 <td align="center">0.25</td>
-<td align="center">4.9</td>
-<td align="center">0.74</td>
-<td align="center">-0.45</td>
 <td align="center">0.77</td>
 <td align="center">17</td>
 <td align="center">8.1</td>
-<td align="center">33</td>
-<td align="center">-6</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1545,14 +1200,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">69</td>
 <td align="center">15</td>
 <td align="center">0.22</td>
-<td align="center">4.3</td>
-<td align="center">0.89</td>
-<td align="center">-0.23</td>
 <td align="center">0.83</td>
 <td align="center">12</td>
 <td align="center">6.1</td>
-<td align="center">25</td>
-<td align="center">-5.6</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1560,14 +1210,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">86</td>
 <td align="center">21</td>
 <td align="center">0.24</td>
-<td align="center">6</td>
-<td align="center">0.78</td>
-<td align="center">-0.19</td>
 <td align="center">0.73</td>
 <td align="center">17</td>
 <td align="center">11</td>
-<td align="center">35</td>
-<td align="center">-7</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1575,14 +1220,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">67</td>
 <td align="center">14</td>
 <td align="center">0.21</td>
-<td align="center">4</td>
-<td align="center">0.82</td>
-<td align="center">-0.15</td>
 <td align="center">0.74</td>
 <td align="center">15</td>
 <td align="center">7.1</td>
-<td align="center">30</td>
-<td align="center">-6.7</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -1590,14 +1230,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.2</td>
 <td align="center">1</td>
 <td align="center">0.48</td>
-<td align="center">0.3</td>
-<td align="center">1</td>
-<td align="center">-0.24</td>
 <td align="center">0.9</td>
 <td align="center">23</td>
 <td align="center">0.33</td>
-<td align="center">42</td>
-<td align="center">23</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1605,14 +1240,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.2</td>
 <td align="center">0.99</td>
 <td align="center">0.46</td>
-<td align="center">0.29</td>
-<td align="center">1</td>
-<td align="center">-0.31</td>
 <td align="center">0.93</td>
 <td align="center">17</td>
 <td align="center">0.26</td>
-<td align="center">33</td>
-<td align="center">17</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1620,14 +1250,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.99</td>
 <td align="center">0.065</td>
 <td align="center">0.066</td>
-<td align="center">0.019</td>
-<td align="center">0.66</td>
-<td align="center">-1.4</td>
 <td align="center">0.17</td>
 <td align="center">5.9</td>
 <td align="center">0.06</td>
-<td align="center">17</td>
-<td align="center">-5.5</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1635,14 +1260,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.038</td>
 <td align="center">0.038</td>
-<td align="center">0.011</td>
-<td align="center">0.19</td>
-<td align="center">-1.6</td>
 <td align="center">0.56</td>
 <td align="center">2.9</td>
 <td align="center">0.026</td>
-<td align="center">6.9</td>
-<td align="center">-0.95</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1650,14 +1270,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2</td>
 <td align="center">0.8</td>
 <td align="center">0.4</td>
-<td align="center">0.23</td>
-<td align="center">0.54</td>
-<td align="center">-0.76</td>
 <td align="center">0.86</td>
 <td align="center">18</td>
 <td align="center">0.3</td>
-<td align="center">41</td>
-<td align="center">16</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1665,14 +1280,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.1</td>
 <td align="center">1</td>
 <td align="center">0.47</td>
-<td align="center">0.29</td>
-<td align="center">0.86</td>
-<td align="center">-0.51</td>
 <td align="center">0.92</td>
 <td align="center">21</td>
 <td align="center">0.28</td>
-<td align="center">36</td>
-<td align="center">21</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1680,14 +1290,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.8</td>
 <td align="center">1.5</td>
 <td align="center">0.54</td>
-<td align="center">0.44</td>
-<td align="center">1</td>
-<td align="center">-0.29</td>
 <td align="center">0.93</td>
 <td align="center">22</td>
 <td align="center">0.41</td>
-<td align="center">40</td>
-<td align="center">22</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1695,14 +1300,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.1</td>
 <td align="center">0.94</td>
 <td align="center">0.45</td>
-<td align="center">0.27</td>
-<td align="center">0.87</td>
-<td align="center">-0.57</td>
 <td align="center">0.92</td>
 <td align="center">18</td>
 <td align="center">0.27</td>
-<td align="center">36</td>
-<td align="center">18</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -1710,14 +1310,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.5</td>
 <td align="center">1.1</td>
 <td align="center">0.43</td>
-<td align="center">0.31</td>
-<td align="center">0.88</td>
-<td align="center">-0.37</td>
 <td align="center">0.92</td>
 <td align="center">19</td>
 <td align="center">0.31</td>
-<td align="center">34</td>
-<td align="center">19</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1725,14 +1320,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.3</td>
 <td align="center">0.95</td>
 <td align="center">0.41</td>
-<td align="center">0.28</td>
-<td align="center">0.99</td>
-<td align="center">-0.33</td>
 <td align="center">0.92</td>
 <td align="center">16</td>
 <td align="center">0.28</td>
-<td align="center">33</td>
-<td align="center">16</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1740,14 +1330,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.94</td>
 <td align="center">0.071</td>
 <td align="center">0.075</td>
-<td align="center">0.021</td>
-<td align="center">0.37</td>
-<td align="center">-1.4</td>
 <td align="center">0.48</td>
 <td align="center">7.1</td>
 <td align="center">0.051</td>
-<td align="center">15</td>
-<td align="center">-2.7</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1755,14 +1340,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">1</td>
 <td align="center">0.04</td>
 <td align="center">0.039</td>
-<td align="center">0.012</td>
-<td align="center">0.19</td>
-<td align="center">-1.7</td>
 <td align="center">0.89</td>
 <td align="center">1.6</td>
 <td align="center">0.013</td>
-<td align="center">3.6</td>
-<td align="center">-0.049</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1770,14 +1350,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.3</td>
 <td align="center">0.95</td>
 <td align="center">0.42</td>
-<td align="center">0.27</td>
-<td align="center">0.91</td>
-<td align="center">-0.31</td>
 <td align="center">0.9</td>
 <td align="center">16</td>
 <td align="center">0.3</td>
-<td align="center">36</td>
-<td align="center">15</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1785,14 +1360,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.3</td>
 <td align="center">0.99</td>
 <td align="center">0.42</td>
-<td align="center">0.29</td>
-<td align="center">0.83</td>
-<td align="center">-0.45</td>
 <td align="center">0.93</td>
 <td align="center">16</td>
 <td align="center">0.27</td>
-<td align="center">32</td>
-<td align="center">16</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1800,14 +1370,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">3</td>
 <td align="center">1.5</td>
 <td align="center">0.51</td>
-<td align="center">0.43</td>
-<td align="center">0.99</td>
-<td align="center">-0.37</td>
 <td align="center">0.93</td>
 <td align="center">19</td>
 <td align="center">0.38</td>
-<td align="center">36</td>
-<td align="center">19</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1815,14 +1380,9 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">2.3</td>
 <td align="center">0.91</td>
 <td align="center">0.4</td>
-<td align="center">0.26</td>
-<td align="center">0.82</td>
-<td align="center">-0.59</td>
 <td align="center">0.91</td>
 <td align="center">16</td>
 <td align="center">0.27</td>
-<td align="center">33</td>
-<td align="center">16</td>
 </tr>
 </tbody>
 </table>
@@ -1964,7 +1524,6 @@ library(corrplot)
 col2 <- colorRampPalette(rev(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7",
                            "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061")))
 
-jpeg(filename = 'CorrelationPlots.jpg', width = 9, height=8, res = 800, units = 'in')
 par(mfrow=c(2,2))
 VT_2tcm %>%
   filter(Subjname %in% HABgroup) %>%
@@ -2001,13 +1560,9 @@ SUV_4060 %>%
                  col=col2(200), diag='n',
                  number.digits = 2, title=expression(MAB ~ SUV ~ Correlations),
                  mar=c(0,0,1,0))
-dev.off()
 ```
 
-    ## png 
-    ##   2
-
-![Interregional correlations](CorrelationPlots.jpg)
+![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-19-1.png)
 
 Perform a PCA
 -------------
@@ -2025,8 +1580,6 @@ pcadat <- longdat %>%
   select(PET, Subjname, PETNo, Genotype, Region, Vt_2tcm.z) %>%
   filter(PET != 'mahi_2')
 ```
-
-    ## Joining, by = "PET"
 
 ### On all regions
 
@@ -2330,12 +1883,6 @@ gridExtra::grid.arrange(grobs=list(e,a,b,f,c,d,g,h, genlegend), layout_matrix=la
 ```
 
 ![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-23-1.png)
-
-``` r
-# svglite::svglite('abstractFig.svg', width = 7.8, height = 6)
-# gridExtra::grid.arrange(grobs=list(e,a,b,f,c,d,g,h, genlegend), layout_matrix=layout)
-# dev.off()
-```
 
 ``` r
 alabel <- textGrob(label = expression(paste('MA1 FC ',V[T])))
