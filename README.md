@@ -1,19 +1,54 @@
+-   [Aims](#aims)
+-   [Libraries](#libraries)
+-   [Demographic Data](#demographic-data)
+    -   [Summary Statistics](#summary-statistics)
+-   [TACs and Blood Data](#tacs-and-blood-data)
+-   [Kinetic Modelling](#kinetic-modelling)
+    -   [Fitting of the Delay and Blood Volume Fraction](#fitting-of-the-delay-and-blood-volume-fraction)
+    -   [Rearrangement of the Data into Long Format](#rearrangement-of-the-data-into-long-format)
+    -   [Define functions for fitting the models](#define-functions-for-fitting-the-models)
+    -   [Fit all Kinetic Models](#fit-all-kinetic-models)
+-   [Calculate Ratio Outcomes](#calculate-ratio-outcomes)
+-   [Evaluate Spread and Test-Retest Metrics](#evaluate-spread-and-test-retest-metrics)
+    -   [HABs and MABs together](#habs-and-mabs-together)
+    -   [Separated by Genotype](#separated-by-genotype)
+    -   [Poster Summary](#poster-summary)
+-   [Correlations with V<sub>T</sub>](#correlations-with-vt)
+    -   [Plot of Ratio Associations with V<sub>T</sub>](#plot-of-ratio-associations-with-vt)
+    -   [Plot Of Alternative Quantification Methods Associations with V<sub>T</sub>](#plot-of-alternative-quantification-methods-associations-with-vt)
+-   [Interregional Correlation](#interregional-correlation)
+-   [Principal Components Analysis](#principal-components-analysis)
+    -   [PCA: All Regions](#pca-all-regions)
+    -   [PCA: Only FC, WB and CBL](#pca-only-fc-wb-and-cbl)
+-   [Plotting of 2TCM Model Fits](#plotting-of-2tcm-model-fits)
+    -   [Included Participants](#included-participants)
+    -   [Excluded Participant](#excluded-participant)
+
 Aims
-----
+====
 
-The aims of this study were to evaluate the test-retestreliability, and validity (assessed by the relationship to V<sub>T</sub>) of the Standardised Uptake Value Ratio (SUVR) and Distribution Volume Ratio (DVR) of \[^11^C\]PBR28 in the frontal cortex (FC), using the whole brain (WB) and cerebellum (CBL) as reference regions (i.e. denominators).
+The aims of this study were to evaluate the test-retest reliability, and validity (assessed by the relationship to V<sub>T</sub>) of the Standardised Uptake Value Ratio (SUVR) and Distribution Volume Ratio (DVR) of \[<sup>11</sup>C\]PBR28 in the frontal cortex (FC), using the whole brain (WB) and cerebellum (CBL) as reference regions (i.e. denominators). We also aim to examine the degree of association of binding estimates between regions of the brain.
 
-Load Libraries
---------------
+Libraries
+=========
+
+First, the libraries for the analysis and plotting are loaded.
 
 ``` r
 library(tidyverse)
 library(stringr)
 library(kinfitr)
+library(corrplot)
+library(vmisc)
+library(gridExtra)
+library(grid)
+library(RColorBrewer)
 ```
 
-Read in the demographic data
-----------------------------
+Demographic Data
+================
+
+Here, the demographic data is loaded in.
 
 ``` r
 demog <- readxl::read_excel('../RawData/TrT_chemistry_demograph.xlsx') %>%
@@ -23,6 +58,11 @@ demog <- readxl::read_excel('../RawData/TrT_chemistry_demograph.xlsx') %>%
   mutate(PETNo = as.numeric(stringr::str_match(PETNo, '\\d'))) %>%
   mutate(PET = paste(Subjname, PETNo, sep='_'))
 ```
+
+Summary Statistics
+------------------
+
+Below are presented some summary statistics of the demographic data.
 
 ``` r
 demog %>%
@@ -138,8 +178,10 @@ pander::pandoc.table(table(counts$Gender, counts$Genotype), caption = "Gender an
 </tbody>
 </table>
 
-Read in the TACs and the blood data
------------------------------------
+TACs and Blood Data
+===================
+
+Here, the TACs and blood data are read in and merged with the demographic data.
 
 ``` r
 dat <- readRDS('../RawData/pbrdat.rds')
@@ -157,8 +199,15 @@ datdf <- map(dat, 'tacdf') %>%
   inner_join(demog)
 ```
 
-Fit the delay
--------------
+Kinetic Modelling
+=================
+
+Kinetic modelling is performed using the [kinfitr](https://github.com/mathesong/kinfitr) R package.
+
+Fitting of the Delay and Blood Volume Fraction
+----------------------------------------------
+
+Here, the delay and blood bolume fraction are fitten using the whole brain ROI using 2TCM.
 
 ``` r
 datdf <- datdf %>%
@@ -169,8 +218,10 @@ datdf <- datdf %>%
 saveRDS(datdf, file='datdf.rds')
 ```
 
-Convert the data to longer format
----------------------------------
+Rearrangement of the Data into Long Format
+------------------------------------------
+
+Here, the data is transformed from wide format (where each row represents one PET measurement) into long format (where each row represents one region of each PET measurement)
 
 ``` r
 tacs <- datdf %>%
@@ -189,6 +240,8 @@ longdat <- datdf %>%
 
 Define functions for fitting the models
 ---------------------------------------
+
+Here we create functions for fitting each of the models.
 
 ``` r
 # Total SUV
@@ -228,32 +281,36 @@ fit2tcm <- function(tacs, input, delayFit) {
 }
 ```
 
-Fit all the models
-------------------
+Fit all Kinetic Models
+----------------------
+
+Here, all kinetic models are fitted, and the V<sub>T</sub> values are extracted and added to the data frame.
 
 ``` r
 longdat <- longdat %>%
   # SUV Total
   mutate(suvout_tot = pmap(list(tacs, bodyMass, injRad), calcSUV, frameStartEnd=c(1,33))) %>%
-  mutate(SUV_tot = purrr::map(suvout_tot, c('par', 'intSUV')) %>% do.call(rbind, .) %>% as.numeric()) %>%
+  mutate(SUV_tot = purrr::map_dbl(suvout_tot, c('par', 'intSUV'))) %>%
   
   # SUV 40-60 Minutes
-  mutate(SUV4060 = purrr::map(suvout_tot, calcSUV_4060) %>% do.call(rbind, .) %>% as.numeric()) %>%
+  mutate(SUV4060 = purrr::map(suvout_tot, calcSUV_4060)) %>%
   
   # MA1
   mutate(fit_ma1 = pmap(list(tacs, input, WB_delay), fitma1)) %>%
-  mutate(Vt_ma1 = purrr::map(fit_ma1, c('par', 'Vt')) %>% do.call(rbind, .) %>% as.numeric()) %>%
+  mutate(Vt_ma1 = purrr::map(fit_ma1, c('par', 'Vt'))) %>%
     
   # 2TCM using fitted vB and delay
   mutate(fit_2tcm= pmap(list(tacs, input, WB_delay), fit2tcm)) %>%
-  mutate(Vt_2tcm = purrr::map(fit_2tcm, c('par', 'Vt')) %>% do.call(rbind, .) %>% as.numeric())
+  mutate(Vt_2tcm = purrr::map(fit_2tcm, c('par', 'Vt')))
   
 
 saveRDS(longdat, file='longdat.rds')
 ```
 
-Calculate the ratio metrics for all measures
---------------------------------------------
+Calculate Ratio Outcomes
+========================
+
+Here we calculate the Ratio Outcomes for SUV<sub>Total</sub>, SUV<sub>40-60</sub>, 2TCM and MA1.
 
 ``` r
 SUV_tot <- longdat %>%
@@ -287,10 +344,15 @@ VT_MA1 <- longdat %>%
 trtdata <- bind_rows(list(SUV_tot, SUV_4060, VT_2tcm, VT_MA1))
 ```
 
-Calculate the Test-Retest Metrics
----------------------------------
+Evaluate Spread and Test-Retest Metrics
+=======================================
 
-### HABs and MABs together
+Here we evaluate the spread and test-retest performance for all measures. Due to the influence of genotype, there are systematic differences between individuals. There are high-affinity binders (HABs) and medium-affinity binders (MABs) in this analysis. Thus, test-retest analyses are performed separately for HABs and MABs. Ratio-based outcome measures should account for genotype. Thus, we also performed test-retest analysis on all measurements together.
+
+Note that SEM, the standard error of measurement, can be presented as an estimated standard error around each estimate (i.e. in the same units as the outcome), or as a percentage of the mean outcome like an estimate of the within-individual coefficient of variation. Here, due to differences in the scale of the outcome measures, it is presented as a percentage. This is why it is transformed from the original output.
+
+HABs and MABs together
+----------------------
 
 ``` r
 trtout <- trtdata %>%
@@ -301,22 +363,26 @@ trtout <- trtdata %>%
   do(trt = granviller::trt(.$`1`, .$`2`)$tidy) %>%
   unnest() %>%
   select(-se, -skew, -kurtosis, -md, -avgpercchange) %>%
+  mutate(SEM = sem/mean*100,
+         COV = cov*100) %>%
   arrange(Measure, Region)
 
 pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest Analysis for HABs and MABs together')
 ```
 
-<table style="width:89%;">
+<table>
 <caption>Test-Retest Analysis for HABs and MABs together</caption>
 <colgroup>
-<col width="12%" />
-<col width="15%" />
-<col width="9%" />
 <col width="11%" />
-<col width="11%" />
+<col width="14%" />
+<col width="9%" />
+<col width="10%" />
+<col width="10%" />
 <col width="9%" />
 <col width="9%" />
-<col width="9%" />
+<col width="10%" />
+<col width="7%" />
+<col width="7%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -328,6 +394,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <th align="center">icc</th>
 <th align="center">aapd</th>
 <th align="center">sem</th>
+<th align="center">SEM</th>
+<th align="center">COV</th>
 </tr>
 </thead>
 <tbody>
@@ -340,6 +408,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.9</td>
 <td align="center">10</td>
 <td align="center">0.092</td>
+<td align="center">9.4</td>
+<td align="center">30</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -350,6 +420,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.88</td>
 <td align="center">13</td>
 <td align="center">0.097</td>
+<td align="center">10</td>
+<td align="center">30</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -360,6 +432,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.63</td>
 <td align="center">4.4</td>
 <td align="center">0.036</td>
+<td align="center">3.8</td>
+<td align="center">6.2</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -370,6 +444,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.89</td>
 <td align="center">1.5</td>
 <td align="center">0.013</td>
+<td align="center">1.3</td>
+<td align="center">3.9</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -380,6 +456,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.84</td>
 <td align="center">16</td>
 <td align="center">0.11</td>
+<td align="center">12</td>
+<td align="center">31</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -390,6 +468,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.89</td>
 <td align="center">11</td>
 <td align="center">0.089</td>
+<td align="center">9.6</td>
+<td align="center">29</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -400,6 +480,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.87</td>
 <td align="center">15</td>
 <td align="center">0.13</td>
+<td align="center">11</td>
+<td align="center">32</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -410,6 +492,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.86</td>
 <td align="center">13</td>
 <td align="center">0.092</td>
+<td align="center">10</td>
+<td align="center">27</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -420,6 +504,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.83</td>
 <td align="center">11</td>
 <td align="center">7.1</td>
+<td align="center">8.8</td>
+<td align="center">21</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -430,6 +516,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.8</td>
 <td align="center">12</td>
 <td align="center">7.5</td>
+<td align="center">9.5</td>
+<td align="center">21</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -440,6 +528,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.77</td>
 <td align="center">2.5</td>
 <td align="center">0.022</td>
+<td align="center">2.2</td>
+<td align="center">4.6</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -450,6 +540,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.9</td>
 <td align="center">1.3</td>
 <td align="center">0.012</td>
+<td align="center">1.1</td>
+<td align="center">3.6</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -460,6 +552,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.77</td>
 <td align="center">14</td>
 <td align="center">8.1</td>
+<td align="center">11</td>
+<td align="center">22</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -470,6 +564,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.79</td>
 <td align="center">12</td>
 <td align="center">7</td>
+<td align="center">9.3</td>
+<td align="center">20</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -480,6 +576,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.74</td>
 <td align="center">14</td>
 <td align="center">10</td>
+<td align="center">11</td>
+<td align="center">21</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -490,6 +588,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.75</td>
 <td align="center">13</td>
 <td align="center">7</td>
+<td align="center">9.7</td>
+<td align="center">19</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -500,6 +600,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">21</td>
 <td align="center">0.45</td>
+<td align="center">15</td>
+<td align="center">55</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -510,6 +612,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">19</td>
 <td align="center">0.42</td>
+<td align="center">14</td>
+<td align="center">53</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -520,6 +624,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.54</td>
 <td align="center">4.7</td>
 <td align="center">0.048</td>
+<td align="center">4.9</td>
+<td align="center">7.1</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -530,6 +636,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.52</td>
 <td align="center">3</td>
 <td align="center">0.026</td>
+<td align="center">2.5</td>
+<td align="center">3.6</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -540,6 +648,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">19</td>
 <td align="center">0.39</td>
+<td align="center">14</td>
+<td align="center">53</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -550,6 +660,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.94</td>
 <td align="center">19</td>
 <td align="center">0.39</td>
+<td align="center">13</td>
+<td align="center">54</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -560,6 +672,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">23</td>
 <td align="center">0.61</td>
+<td align="center">16</td>
+<td align="center">60</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -570,6 +684,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">19</td>
 <td align="center">0.4</td>
+<td align="center">14</td>
+<td align="center">53</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -580,6 +696,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.94</td>
 <td align="center">18</td>
 <td align="center">0.45</td>
+<td align="center">13</td>
+<td align="center">53</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -590,6 +708,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">18</td>
 <td align="center">0.43</td>
+<td align="center">14</td>
+<td align="center">51</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -600,6 +720,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.62</td>
 <td align="center">6.1</td>
 <td align="center">0.045</td>
+<td align="center">4.9</td>
+<td align="center">7.9</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -610,6 +732,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.86</td>
 <td align="center">1.6</td>
 <td align="center">0.013</td>
+<td align="center">1.3</td>
+<td align="center">3.4</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -620,6 +744,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">18</td>
 <td align="center">0.42</td>
+<td align="center">14</td>
+<td align="center">52</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -630,6 +756,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.94</td>
 <td align="center">17</td>
 <td align="center">0.39</td>
+<td align="center">12</td>
+<td align="center">52</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -640,6 +768,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">21</td>
 <td align="center">0.61</td>
+<td align="center">15</td>
+<td align="center">58</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -650,16 +780,21 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">18</td>
 <td align="center">0.42</td>
+<td align="center">14</td>
+<td align="center">51</td>
 </tr>
 </tbody>
 </table>
 
-### Separated by Genotype
+Separated by Genotype
+---------------------
 
 ``` r
 HABgroup <- demog$Subjname[demog$Genotype=='HAB']
 MABgroup <- demog$Subjname[demog$Genotype=='MAB']
 ```
+
+### HABs
 
 ``` r
 trtout <- trtdata %>%
@@ -671,22 +806,26 @@ trtout <- trtdata %>%
   do(trt = granviller::trt(.$`1`, .$`2`)$tidy) %>%
   unnest() %>%
   select(-se, -skew, -kurtosis, -md, -avgpercchange) %>%
+  mutate(SEM = sem/mean*100,
+         COV = cov*100) %>%
   arrange(Measure, Region)
 
 pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest Analysis for HABs')
 ```
 
-<table style="width:89%;">
+<table>
 <caption>Test-Retest Analysis for HABs</caption>
 <colgroup>
-<col width="12%" />
-<col width="15%" />
-<col width="9%" />
 <col width="11%" />
-<col width="11%" />
-<col width="9%" />
-<col width="9%" />
-<col width="9%" />
+<col width="13%" />
+<col width="8%" />
+<col width="10%" />
+<col width="10%" />
+<col width="8%" />
+<col width="8%" />
+<col width="10%" />
+<col width="8%" />
+<col width="8%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -698,6 +837,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <th align="center">icc</th>
 <th align="center">aapd</th>
 <th align="center">sem</th>
+<th align="center">SEM</th>
+<th align="center">COV</th>
 </tr>
 </thead>
 <tbody>
@@ -710,6 +851,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.8</td>
 <td align="center">13</td>
 <td align="center">0.12</td>
+<td align="center">11</td>
+<td align="center">24</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -720,6 +863,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.76</td>
 <td align="center">13</td>
 <td align="center">0.12</td>
+<td align="center">11</td>
+<td align="center">22</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -730,6 +875,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.85</td>
 <td align="center">3.2</td>
 <td align="center">0.027</td>
+<td align="center">2.9</td>
+<td align="center">7.5</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -740,6 +887,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.6</td>
 <td align="center">1.3</td>
 <td align="center">0.012</td>
+<td align="center">1.2</td>
+<td align="center">1.9</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -750,6 +899,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.74</td>
 <td align="center">15</td>
 <td align="center">0.12</td>
+<td align="center">12</td>
+<td align="center">23</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -760,6 +911,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.77</td>
 <td align="center">13</td>
 <td align="center">0.11</td>
+<td align="center">10</td>
+<td align="center">22</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -770,6 +923,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.78</td>
 <td align="center">14</td>
 <td align="center">0.15</td>
+<td align="center">11</td>
+<td align="center">24</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -780,6 +935,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.78</td>
 <td align="center">12</td>
 <td align="center">0.1</td>
+<td align="center">10</td>
+<td align="center">21</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -790,6 +947,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.69</td>
 <td align="center">11</td>
 <td align="center">8.1</td>
+<td align="center">9.1</td>
+<td align="center">16</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -800,6 +959,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.65</td>
 <td align="center">9.9</td>
 <td align="center">7.3</td>
+<td align="center">8.4</td>
+<td align="center">14</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -810,6 +971,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.96</td>
 <td align="center">1.3</td>
 <td align="center">0.011</td>
+<td align="center">1.1</td>
+<td align="center">5.7</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -820,6 +983,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.7</td>
 <td align="center">1.2</td>
 <td align="center">0.011</td>
+<td align="center">0.97</td>
+<td align="center">1.8</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -830,6 +995,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.62</td>
 <td align="center">11</td>
 <td align="center">7.7</td>
+<td align="center">9.1</td>
+<td align="center">15</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -840,6 +1007,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.63</td>
 <td align="center">11</td>
 <td align="center">7.7</td>
+<td align="center">9.3</td>
+<td align="center">15</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -850,6 +1019,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.71</td>
 <td align="center">9.6</td>
 <td align="center">8.6</td>
+<td align="center">8.6</td>
+<td align="center">16</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -860,6 +1031,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.68</td>
 <td align="center">10</td>
 <td align="center">6.6</td>
+<td align="center">8.4</td>
+<td align="center">15</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -870,6 +1043,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.91</td>
 <td align="center">19</td>
 <td align="center">0.54</td>
+<td align="center">14</td>
+<td align="center">44</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -880,6 +1055,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.89</td>
 <td align="center">21</td>
 <td align="center">0.54</td>
+<td align="center">14</td>
+<td align="center">42</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -890,6 +1067,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.87</td>
 <td align="center">3.4</td>
 <td align="center">0.028</td>
+<td align="center">2.9</td>
+<td align="center">8.1</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -900,6 +1079,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.33</td>
 <td align="center">3.1</td>
 <td align="center">0.026</td>
+<td align="center">2.4</td>
+<td align="center">3</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -910,6 +1091,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">19</td>
 <td align="center">0.46</td>
+<td align="center">13</td>
+<td align="center">45</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -920,6 +1103,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">18</td>
 <td align="center">0.48</td>
+<td align="center">12</td>
+<td align="center">44</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -930,6 +1115,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.91</td>
 <td align="center">24</td>
 <td align="center">0.76</td>
+<td align="center">15</td>
+<td align="center">49</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -940,6 +1127,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.91</td>
 <td align="center">20</td>
 <td align="center">0.5</td>
+<td align="center">14</td>
+<td align="center">44</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -950,6 +1139,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">17</td>
 <td align="center">0.55</td>
+<td align="center">12</td>
+<td align="center">43</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -960,6 +1151,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.9</td>
 <td align="center">20</td>
 <td align="center">0.54</td>
+<td align="center">13</td>
+<td align="center">42</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -970,6 +1163,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.79</td>
 <td align="center">4.8</td>
 <td align="center">0.036</td>
+<td align="center">3.9</td>
+<td align="center">8.5</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -980,6 +1175,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.79</td>
 <td align="center">1.6</td>
 <td align="center">0.012</td>
+<td align="center">1.2</td>
+<td align="center">2.6</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -990,6 +1187,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.91</td>
 <td align="center">22</td>
 <td align="center">0.52</td>
+<td align="center">13</td>
+<td align="center">43</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1000,6 +1199,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">17</td>
 <td align="center">0.47</td>
+<td align="center">11</td>
+<td align="center">43</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1010,6 +1211,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.91</td>
 <td align="center">24</td>
 <td align="center">0.77</td>
+<td align="center">14</td>
+<td align="center">48</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1020,9 +1223,13 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.91</td>
 <td align="center">20</td>
 <td align="center">0.53</td>
+<td align="center">13</td>
+<td align="center">43</td>
 </tr>
 </tbody>
 </table>
+
+### MABs
 
 ``` r
 trtout <- trtdata %>%
@@ -1034,22 +1241,26 @@ trtout <- trtdata %>%
   do(trt = granviller::trt(.$`1`, .$`2`)$tidy) %>%
   unnest() %>%
   select(-se, -skew, -kurtosis, -md, -avgpercchange) %>%
+  mutate(SEM = sem/mean*100,
+         COV = cov*100) %>%
   arrange(Measure, Region)
 
 pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest Analysis for MABs')
 ```
 
-<table style="width:89%;">
+<table>
 <caption>Test-Retest Analysis for MABs</caption>
 <colgroup>
-<col width="12%" />
-<col width="15%" />
-<col width="9%" />
 <col width="11%" />
-<col width="11%" />
+<col width="14%" />
+<col width="9%" />
+<col width="10%" />
+<col width="10%" />
 <col width="9%" />
 <col width="9%" />
-<col width="9%" />
+<col width="10%" />
+<col width="7%" />
+<col width="7%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -1061,6 +1272,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <th align="center">icc</th>
 <th align="center">aapd</th>
 <th align="center">sem</th>
+<th align="center">SEM</th>
+<th align="center">COV</th>
 </tr>
 </thead>
 <tbody>
@@ -1073,6 +1286,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.95</td>
 <td align="center">7.3</td>
 <td align="center">0.053</td>
+<td align="center">6.3</td>
+<td align="center">30</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1083,6 +1298,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.91</td>
 <td align="center">13</td>
 <td align="center">0.073</td>
+<td align="center">9.1</td>
+<td align="center">31</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1093,6 +1310,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.32</td>
 <td align="center">5.4</td>
 <td align="center">0.041</td>
+<td align="center">4.3</td>
+<td align="center">5.2</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1103,6 +1322,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.89</td>
 <td align="center">1.6</td>
 <td align="center">0.013</td>
+<td align="center">1.3</td>
+<td align="center">4</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1113,6 +1334,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.87</td>
 <td align="center">16</td>
 <td align="center">0.086</td>
+<td align="center">11</td>
+<td align="center">31</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1123,6 +1346,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">9.9</td>
 <td align="center">0.062</td>
+<td align="center">7.7</td>
+<td align="center">30</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1133,6 +1358,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.9</td>
 <td align="center">16</td>
 <td align="center">0.11</td>
+<td align="center">11</td>
+<td align="center">35</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1143,6 +1370,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.87</td>
 <td align="center">13</td>
 <td align="center">0.077</td>
+<td align="center">9.7</td>
+<td align="center">27</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -1153,6 +1382,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.86</td>
 <td align="center">11</td>
 <td align="center">5.8</td>
+<td align="center">8</td>
+<td align="center">21</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1163,6 +1394,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.8</td>
 <td align="center">14</td>
 <td align="center">7.4</td>
+<td align="center">10</td>
+<td align="center">23</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1173,6 +1406,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.45</td>
 <td align="center">3.5</td>
 <td align="center">0.027</td>
+<td align="center">2.8</td>
+<td align="center">3.8</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1183,6 +1418,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.89</td>
 <td align="center">1.4</td>
 <td align="center">0.013</td>
+<td align="center">1.2</td>
+<td align="center">3.6</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1193,6 +1430,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.77</td>
 <td align="center">17</td>
 <td align="center">8.1</td>
+<td align="center">12</td>
+<td align="center">25</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1203,6 +1442,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.83</td>
 <td align="center">12</td>
 <td align="center">6.1</td>
+<td align="center">8.9</td>
+<td align="center">22</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1213,6 +1454,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.73</td>
 <td align="center">17</td>
 <td align="center">11</td>
+<td align="center">13</td>
+<td align="center">24</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1223,6 +1466,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.74</td>
 <td align="center">15</td>
 <td align="center">7.1</td>
+<td align="center">11</td>
+<td align="center">21</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -1233,6 +1478,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.9</td>
 <td align="center">23</td>
 <td align="center">0.33</td>
+<td align="center">15</td>
+<td align="center">48</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1243,6 +1490,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">17</td>
 <td align="center">0.26</td>
+<td align="center">12</td>
+<td align="center">46</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1253,6 +1502,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.17</td>
 <td align="center">5.9</td>
 <td align="center">0.06</td>
+<td align="center">6</td>
+<td align="center">6.6</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1263,6 +1514,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.56</td>
 <td align="center">2.9</td>
 <td align="center">0.026</td>
+<td align="center">2.5</td>
+<td align="center">3.8</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1273,6 +1526,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.86</td>
 <td align="center">18</td>
 <td align="center">0.3</td>
+<td align="center">15</td>
+<td align="center">40</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1283,6 +1538,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">21</td>
 <td align="center">0.28</td>
+<td align="center">13</td>
+<td align="center">47</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1293,6 +1550,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">22</td>
 <td align="center">0.41</td>
+<td align="center">15</td>
+<td align="center">54</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1303,6 +1562,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">18</td>
 <td align="center">0.27</td>
+<td align="center">13</td>
+<td align="center">45</td>
 </tr>
 <tr class="odd">
 <td align="center">CBL</td>
@@ -1313,6 +1574,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">19</td>
 <td align="center">0.31</td>
+<td align="center">12</td>
+<td align="center">43</td>
 </tr>
 <tr class="even">
 <td align="center">FC</td>
@@ -1323,6 +1586,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.92</td>
 <td align="center">16</td>
 <td align="center">0.28</td>
+<td align="center">12</td>
+<td align="center">41</td>
 </tr>
 <tr class="odd">
 <td align="center">FC_CBL</td>
@@ -1333,6 +1598,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.48</td>
 <td align="center">7.1</td>
 <td align="center">0.051</td>
+<td align="center">5.4</td>
+<td align="center">7.5</td>
 </tr>
 <tr class="even">
 <td align="center">FC_WB</td>
@@ -1343,6 +1610,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.89</td>
 <td align="center">1.6</td>
 <td align="center">0.013</td>
+<td align="center">1.3</td>
+<td align="center">3.9</td>
 </tr>
 <tr class="odd">
 <td align="center">STR</td>
@@ -1353,6 +1622,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.9</td>
 <td align="center">16</td>
 <td align="center">0.3</td>
+<td align="center">13</td>
+<td align="center">42</td>
 </tr>
 <tr class="even">
 <td align="center">TC</td>
@@ -1363,6 +1634,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">16</td>
 <td align="center">0.27</td>
+<td align="center">12</td>
+<td align="center">42</td>
 </tr>
 <tr class="odd">
 <td align="center">THA</td>
@@ -1373,6 +1646,8 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.93</td>
 <td align="center">19</td>
 <td align="center">0.38</td>
+<td align="center">13</td>
+<td align="center">51</td>
 </tr>
 <tr class="even">
 <td align="center">WB</td>
@@ -1383,12 +1658,251 @@ pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest An
 <td align="center">0.91</td>
 <td align="center">16</td>
 <td align="center">0.27</td>
+<td align="center">12</td>
+<td align="center">40</td>
 </tr>
 </tbody>
 </table>
 
-Prepare data for Plots
-----------------------
+Poster Summary
+--------------
+
+``` r
+trtout <- trtdata %>%
+  left_join(select(demog, Subjname, PETNo, Genotype)) %>%
+  gather(Region, Binding, -Subjname, -PETNo, -Measure, -Genotype) %>%
+  filter(Subjname != 'mahi') %>%
+  spread(PETNo, Binding) %>%
+  bind_rows(mutate(., Genotype='All')) %>%
+  group_by(Region, Measure, Genotype) %>%
+  do(trt = granviller::trt(.$`1`, .$`2`)$tidy) %>%
+  unnest() %>%
+  arrange(rev(Measure), Region, Genotype) %>%
+  filter(Region == "FC" | Region == "FC_WB" | Region == "FC_CBL" ) %>%
+  filter(Measure == "Vt_2tcm" | Measure == "SUV_4060") %>%
+  mutate(sem = sem/mean*100,
+         COV = cov*100) %>%
+  select(Genotype, Region, Measure,Mean=mean, COV, ICC=icc,VAR=aapd,SEM=sem)
+```
+
+    ## Joining, by = c("Subjname", "PETNo")
+
+``` r
+pander::pandoc.table(trtout, digits=2, split.tables=Inf, caption='Test-Retest Poster Table')
+```
+
+<table style="width:88%;">
+<caption>Test-Retest Poster Table</caption>
+<colgroup>
+<col width="15%" />
+<col width="12%" />
+<col width="15%" />
+<col width="9%" />
+<col width="8%" />
+<col width="9%" />
+<col width="8%" />
+<col width="8%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="center">Genotype</th>
+<th align="center">Region</th>
+<th align="center">Measure</th>
+<th align="center">Mean</th>
+<th align="center">COV</th>
+<th align="center">ICC</th>
+<th align="center">VAR</th>
+<th align="center">SEM</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">All</td>
+<td align="center">FC</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">2.9</td>
+<td align="center">53</td>
+<td align="center">0.93</td>
+<td align="center">19</td>
+<td align="center">14</td>
+</tr>
+<tr class="even">
+<td align="center">HAB</td>
+<td align="center">FC</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">3.9</td>
+<td align="center">42</td>
+<td align="center">0.89</td>
+<td align="center">21</td>
+<td align="center">14</td>
+</tr>
+<tr class="odd">
+<td align="center">MAB</td>
+<td align="center">FC</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">2.2</td>
+<td align="center">46</td>
+<td align="center">0.93</td>
+<td align="center">17</td>
+<td align="center">12</td>
+</tr>
+<tr class="even">
+<td align="center">All</td>
+<td align="center">FC_CBL</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">0.98</td>
+<td align="center">7.1</td>
+<td align="center">0.54</td>
+<td align="center">4.7</td>
+<td align="center">4.9</td>
+</tr>
+<tr class="odd">
+<td align="center">HAB</td>
+<td align="center">FC_CBL</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">0.97</td>
+<td align="center">8.1</td>
+<td align="center">0.87</td>
+<td align="center">3.4</td>
+<td align="center">2.9</td>
+</tr>
+<tr class="even">
+<td align="center">MAB</td>
+<td align="center">FC_CBL</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">0.99</td>
+<td align="center">6.6</td>
+<td align="center">0.17</td>
+<td align="center">5.9</td>
+<td align="center">6</td>
+</tr>
+<tr class="odd">
+<td align="center">All</td>
+<td align="center">FC_WB</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">1</td>
+<td align="center">3.6</td>
+<td align="center">0.52</td>
+<td align="center">3</td>
+<td align="center">2.5</td>
+</tr>
+<tr class="even">
+<td align="center">HAB</td>
+<td align="center">FC_WB</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">1.1</td>
+<td align="center">3</td>
+<td align="center">0.33</td>
+<td align="center">3.1</td>
+<td align="center">2.4</td>
+</tr>
+<tr class="odd">
+<td align="center">MAB</td>
+<td align="center">FC_WB</td>
+<td align="center">Vt_2tcm</td>
+<td align="center">1</td>
+<td align="center">3.8</td>
+<td align="center">0.56</td>
+<td align="center">2.9</td>
+<td align="center">2.5</td>
+</tr>
+<tr class="even">
+<td align="center">All</td>
+<td align="center">FC</td>
+<td align="center">SUV_4060</td>
+<td align="center">0.92</td>
+<td align="center">30</td>
+<td align="center">0.88</td>
+<td align="center">13</td>
+<td align="center">10</td>
+</tr>
+<tr class="odd">
+<td align="center">HAB</td>
+<td align="center">FC</td>
+<td align="center">SUV_4060</td>
+<td align="center">1.1</td>
+<td align="center">22</td>
+<td align="center">0.76</td>
+<td align="center">13</td>
+<td align="center">11</td>
+</tr>
+<tr class="even">
+<td align="center">MAB</td>
+<td align="center">FC</td>
+<td align="center">SUV_4060</td>
+<td align="center">0.8</td>
+<td align="center">31</td>
+<td align="center">0.91</td>
+<td align="center">13</td>
+<td align="center">9.1</td>
+</tr>
+<tr class="odd">
+<td align="center">All</td>
+<td align="center">FC_CBL</td>
+<td align="center">SUV_4060</td>
+<td align="center">0.95</td>
+<td align="center">6.2</td>
+<td align="center">0.63</td>
+<td align="center">4.4</td>
+<td align="center">3.8</td>
+</tr>
+<tr class="even">
+<td align="center">HAB</td>
+<td align="center">FC_CBL</td>
+<td align="center">SUV_4060</td>
+<td align="center">0.94</td>
+<td align="center">7.5</td>
+<td align="center">0.85</td>
+<td align="center">3.2</td>
+<td align="center">2.9</td>
+</tr>
+<tr class="odd">
+<td align="center">MAB</td>
+<td align="center">FC_CBL</td>
+<td align="center">SUV_4060</td>
+<td align="center">0.95</td>
+<td align="center">5.2</td>
+<td align="center">0.32</td>
+<td align="center">5.4</td>
+<td align="center">4.3</td>
+</tr>
+<tr class="even">
+<td align="center">All</td>
+<td align="center">FC_WB</td>
+<td align="center">SUV_4060</td>
+<td align="center">1</td>
+<td align="center">3.9</td>
+<td align="center">0.89</td>
+<td align="center">1.5</td>
+<td align="center">1.3</td>
+</tr>
+<tr class="odd">
+<td align="center">HAB</td>
+<td align="center">FC_WB</td>
+<td align="center">SUV_4060</td>
+<td align="center">1</td>
+<td align="center">1.9</td>
+<td align="center">0.6</td>
+<td align="center">1.3</td>
+<td align="center">1.2</td>
+</tr>
+<tr class="even">
+<td align="center">MAB</td>
+<td align="center">FC_WB</td>
+<td align="center">SUV_4060</td>
+<td align="center">1</td>
+<td align="center">4</td>
+<td align="center">0.89</td>
+<td align="center">1.6</td>
+<td align="center">1.3</td>
+</tr>
+</tbody>
+</table>
+
+Correlations with V<sub>T</sub>
+===============================
+
+Here, the data is arranged for assessment of the correlation with V<sub>T</sub>
 
 ``` r
 plotdat <- data.frame(PET = datdf$PET, Subjname = datdf$Subjname,
@@ -1405,15 +1919,14 @@ plotdat <- data.frame(PET = datdf$PET, Subjname = datdf$Subjname,
   filter(Subjname != 'mahi')
 ```
 
-Calculate the correlations between metrics
-------------------------------------------
+Here, correlations with 2TCM V<sub>T</sub> are calculated.
 
 ``` r
 corout <- plotdat %>%
   gather(Measure, Binding, -PET, -Genotype, -PETNo, -VT_FC, -Subjname) %>%
   group_by(Measure, Genotype) %>%
   dplyr::summarise(r2=cor(Binding, VT_FC)^2) %>%
-  arrange(Genotype, r2)
+  arrange(Measure, Genotype)
 
 pander::pandoc.table(corout, digits=2, split.tables=Inf)
 ```
@@ -1433,59 +1946,9 @@ pander::pandoc.table(corout, digits=2, split.tables=Inf)
 </thead>
 <tbody>
 <tr class="odd">
-<td align="center">SUV_FC_CBL</td>
-<td align="center">HAB</td>
-<td align="center">0.00096</td>
-</tr>
-<tr class="even">
-<td align="center">SUV4060_FC_CBL</td>
-<td align="center">HAB</td>
-<td align="center">0.011</td>
-</tr>
-<tr class="odd">
 <td align="center">DVR_FC_CBL</td>
 <td align="center">HAB</td>
 <td align="center">0.016</td>
-</tr>
-<tr class="even">
-<td align="center">SUV4060_FC_WB</td>
-<td align="center">HAB</td>
-<td align="center">0.024</td>
-</tr>
-<tr class="odd">
-<td align="center">SUV_FC_WB</td>
-<td align="center">HAB</td>
-<td align="center">0.15</td>
-</tr>
-<tr class="even">
-<td align="center">DVR_FC_WB</td>
-<td align="center">HAB</td>
-<td align="center">0.31</td>
-</tr>
-<tr class="odd">
-<td align="center">SUV_FC</td>
-<td align="center">HAB</td>
-<td align="center">0.69</td>
-</tr>
-<tr class="even">
-<td align="center">VT_FC_MA1</td>
-<td align="center">HAB</td>
-<td align="center">0.99</td>
-</tr>
-<tr class="odd">
-<td align="center">SUV4060_FC_CBL</td>
-<td align="center">MAB</td>
-<td align="center">0.0034</td>
-</tr>
-<tr class="even">
-<td align="center">DVR_FC_WB</td>
-<td align="center">MAB</td>
-<td align="center">0.0055</td>
-</tr>
-<tr class="odd">
-<td align="center">SUV_FC_CBL</td>
-<td align="center">MAB</td>
-<td align="center">0.028</td>
 </tr>
 <tr class="even">
 <td align="center">DVR_FC_CBL</td>
@@ -1493,9 +1956,59 @@ pander::pandoc.table(corout, digits=2, split.tables=Inf)
 <td align="center">0.034</td>
 </tr>
 <tr class="odd">
+<td align="center">DVR_FC_WB</td>
+<td align="center">HAB</td>
+<td align="center">0.31</td>
+</tr>
+<tr class="even">
+<td align="center">DVR_FC_WB</td>
+<td align="center">MAB</td>
+<td align="center">0.0055</td>
+</tr>
+<tr class="odd">
+<td align="center">SUV_FC</td>
+<td align="center">HAB</td>
+<td align="center">0.69</td>
+</tr>
+<tr class="even">
+<td align="center">SUV_FC</td>
+<td align="center">MAB</td>
+<td align="center">0.86</td>
+</tr>
+<tr class="odd">
+<td align="center">SUV_FC_CBL</td>
+<td align="center">HAB</td>
+<td align="center">0.00096</td>
+</tr>
+<tr class="even">
+<td align="center">SUV_FC_CBL</td>
+<td align="center">MAB</td>
+<td align="center">0.028</td>
+</tr>
+<tr class="odd">
+<td align="center">SUV_FC_WB</td>
+<td align="center">HAB</td>
+<td align="center">0.15</td>
+</tr>
+<tr class="even">
 <td align="center">SUV_FC_WB</td>
 <td align="center">MAB</td>
 <td align="center">0.21</td>
+</tr>
+<tr class="odd">
+<td align="center">SUV4060_FC_CBL</td>
+<td align="center">HAB</td>
+<td align="center">0.011</td>
+</tr>
+<tr class="even">
+<td align="center">SUV4060_FC_CBL</td>
+<td align="center">MAB</td>
+<td align="center">0.0034</td>
+</tr>
+<tr class="odd">
+<td align="center">SUV4060_FC_WB</td>
+<td align="center">HAB</td>
+<td align="center">0.024</td>
 </tr>
 <tr class="even">
 <td align="center">SUV4060_FC_WB</td>
@@ -1503,9 +2016,9 @@ pander::pandoc.table(corout, digits=2, split.tables=Inf)
 <td align="center">0.33</td>
 </tr>
 <tr class="odd">
-<td align="center">SUV_FC</td>
-<td align="center">MAB</td>
-<td align="center">0.86</td>
+<td align="center">VT_FC_MA1</td>
+<td align="center">HAB</td>
+<td align="center">0.99</td>
 </tr>
 <tr class="even">
 <td align="center">VT_FC_MA1</td>
@@ -1515,12 +2028,123 @@ pander::pandoc.table(corout, digits=2, split.tables=Inf)
 </tbody>
 </table>
 
-Make interregional correlation plots for V<sub>T</sub>
-------------------------------------------------------
+Plot of Ratio Associations with V<sub>T</sub>
+---------------------------------------------
 
 ``` r
-library(corrplot)
+# SUVWB
+a <- ggplot(plotdat, aes(x=VT_FC, y=SUV4060_FC_WB, colour=Genotype)) + 
+  geom_point() + expand_limits(x=0,y=c(0.95,1.1)) + theme_blog() + 
+  labs(x=expression(V[T]),
+       y=expression(SUVR[WB])) +
+  theme(axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        plot.background = element_rect(fill = "white")) +
+  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
 
+# SUVCBL
+b <- ggplot(plotdat, aes(x=VT_FC, y=SUV4060_FC_CBL, colour=Genotype)) + 
+  geom_point() + expand_limits(x=0,y=c(0.8,1.1)) + theme_blog() + 
+  labs(x=expression(V[T]),
+       y=expression(SUVR[CBL])) +
+  theme(axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        plot.background = element_rect(fill = "white")) +
+  scale_y_continuous(breaks=seq(0.8,1.1,by=0.1)) +
+  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
+
+# DVRWB
+c <- ggplot(plotdat, aes(x=VT_FC, y=DVR_FC_WB, colour=Genotype)) + 
+  geom_point() + expand_limits(x=0,y=c(0.95,1.1)) + theme_blog() + 
+  labs(x=expression(paste('Frontal Cortex ',V[T])),
+       y=expression(DVR[WB])) +
+  theme(axis.title.y=element_blank(),
+        plot.background = element_rect(fill = "white")) +
+  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
+
+# DVRCBL
+d <- ggplot(plotdat, aes(x=VT_FC, y=DVR_FC_CBL, colour=Genotype)) + 
+  geom_point() + expand_limits(x=0,y=c(0.8,1.1)) + theme_blog() + 
+  labs(x=expression(paste('Frontal Cortex ',V[T])),
+       y=expression(DVR[CBL])) +
+  theme(axis.title.y=element_blank(),
+        plot.background = element_rect(fill = "white")) +
+  scale_y_continuous(breaks=seq(0.8,1.1,by=0.1)) +
+  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
+
+# Text Labels
+e = textGrob(label = 'SUVR')
+f = textGrob(label = 'DVR')
+g = textGrob(label = '     Whole Brain')
+h = textGrob(label = '     Cerebellum')
+
+# Legend
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  legend
+}
+
+a2 <- ggplot(plotdat, aes(x=VT_FC, y=SUV4060_FC_WB, colour=Genotype)) + 
+  geom_point() + theme_bw() +
+  scale_color_brewer('Genotype', palette = 'Set1')
+
+genlegend <- g_legend(a2)
+
+layout <- rbind(c(NA, 7, 8, 9 ),
+                c(1, 2, 3, 9),
+                c(4, 5, 6, 9))
+
+gridExtra::grid.arrange(grobs=list(e,a,b,f,c,d,g,h, genlegend), layout_matrix=layout, widths=c(1,4,4,2), heights=c(1,4,5))
+```
+
+![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-20-1.png)
+
+Plot Of Alternative Quantification Methods Associations with V<sub>T</sub>
+--------------------------------------------------------------------------
+
+``` r
+# MA1
+Vta <- ggplot(plotdat, aes(x=VT_FC, y=VT_FC_MA1, colour=Genotype)) + 
+  geom_point() + theme_blog() + 
+  labs(x=expression(paste('2TCM Frontal Cortex ',V[T])),
+       y=expression(paste('MA1 Frontal Cortex ',V[T]))) +
+  theme(axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        plot.background = element_rect(fill = "white")) +
+  scale_y_continuous(breaks=seq(1,8,by=0.5)) +
+  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F) +
+  geom_abline(slope = 1, linetype='dashed')
+
+# SUV
+Vtb <- ggplot(plotdat, aes(x=VT_FC, y=SUV_FC, colour=Genotype)) + 
+  geom_point() + theme_blog() + 
+  labs(x=expression(paste('2TCM Frontal Cortex ',V[T])),
+       y=expression(paste('Frontal Cortex ',SUVV[40-60]))) +
+  theme(axis.title.y=element_blank(),
+        plot.background = element_rect(fill = "white")) +
+  scale_y_continuous(breaks=seq(0.5,1.6,by=0.1)) +
+  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
+
+# Text
+alabel <- textGrob(label = expression(paste('MA1 FC ',V[T])))
+blabel <- textGrob(label = expression(paste('FC ',SUV[40-60])))
+
+layout2 <- rbind(c(3, 1, 5),
+                 c(4, 2, 5))
+
+grid.arrange(grobs=list(Vta, Vtb, alabel, blabel, genlegend), layout_matrix=layout2, widths=c(2,4,2), heights=c(4,5))
+```
+
+![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-21-1.png)
+
+Interregional Correlation
+=========================
+
+Here the interregional correlations for V<sub>T</sub> and for SUV are assessed
+
+``` r
 col2 <- colorRampPalette(rev(c("#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7",
                            "#FFFFFF", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC", "#053061")))
 
@@ -1562,12 +2186,12 @@ SUV_4060 %>%
                  mar=c(0,0,1,0))
 ```
 
-![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-19-1.png)
+![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-22-1.png)
 
-Perform a PCA
--------------
+Principal Components Analysis
+=============================
 
-Note that I perform scaling both within genotype and region. Thus HABs and MABs can be combined in the same PCA analysis.
+Principal components analysis (PCA) is performed to assess the cumulative explained variance. Note that scaling (z transformation) is performed both within genotype and region. Thus HABs and MABs can be combined in the same PCA analysis.
 
 ``` r
 pcadat <- longdat %>%
@@ -1581,7 +2205,8 @@ pcadat <- longdat %>%
   filter(PET != 'mahi_2')
 ```
 
-### On all regions
+PCA: All Regions
+----------------
 
 ``` r
 pca1 <- pcadat %>%
@@ -1711,7 +2336,10 @@ pander::pandoc.table(pca2$importance, digits=3, caption = "PCA for PET2: All Reg
 </tbody>
 </table>
 
-### Only FC, WB and CBL
+PCA: Only FC, WB and CBL
+------------------------
+
+This analysis is included to assess the PCA for only the target and the two reference regions in case the former analysis explained much of the total variability due to there being many target ROIs.
 
 ``` r
 pca1 <- pcadat %>%
@@ -1811,110 +2439,11 @@ pander::pandoc.table(pca2$importance, digits=3, caption = "PCA for PET2: FC, WB 
 </tbody>
 </table>
 
-Make the plot
--------------
+Plotting of 2TCM Model Fits
+===========================
 
-``` r
-# devtools::install_github("mvuorre/vmisc")
-library(vmisc)
-library(gridExtra)
-library(grid)
-library(RColorBrewer)
-
-a <- ggplot(plotdat, aes(x=VT_FC, y=SUV4060_FC_WB, colour=Genotype)) + 
-  geom_point() + expand_limits(x=0,y=c(0.95,1.1)) + theme_blog() + 
-  labs(x=expression(V[T]),
-       y=expression(SUVR[WB])) +
-  theme(axis.title.y=element_blank(),
-        axis.title.x=element_blank(),
-        plot.background = element_rect(fill = "white")) +
-  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
-
-b <- ggplot(plotdat, aes(x=VT_FC, y=SUV4060_FC_CBL, colour=Genotype)) + 
-  geom_point() + expand_limits(x=0,y=c(0.8,1.1)) + theme_blog() + 
-  labs(x=expression(V[T]),
-       y=expression(SUVR[CBL])) +
-  theme(axis.title.y=element_blank(),
-        axis.title.x=element_blank(),
-        plot.background = element_rect(fill = "white")) +
-  scale_y_continuous(breaks=seq(0.8,1.1,by=0.1)) +
-  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
-
-c <- ggplot(plotdat, aes(x=VT_FC, y=DVR_FC_WB, colour=Genotype)) + 
-  geom_point() + expand_limits(x=0,y=c(0.95,1.1)) + theme_blog() + 
-  labs(x=expression(paste('Frontal Cortex ',V[T])),
-       y=expression(DVR[WB])) +
-  theme(axis.title.y=element_blank(),
-        plot.background = element_rect(fill = "white")) +
-  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
-
-d <- ggplot(plotdat, aes(x=VT_FC, y=DVR_FC_CBL, colour=Genotype)) + 
-  geom_point() + expand_limits(x=0,y=c(0.8,1.1)) + theme_blog() + 
-  labs(x=expression(paste('Frontal Cortex ',V[T])),
-       y=expression(DVR[CBL])) +
-  theme(axis.title.y=element_blank(),
-        plot.background = element_rect(fill = "white")) +
-  scale_y_continuous(breaks=seq(0.8,1.1,by=0.1)) +
-  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
-
-e = textGrob(label = 'SUVR')
-f = textGrob(label = 'DVR')
-g = textGrob(label = '     Whole Brain')
-h = textGrob(label = '     Cerebellum')
-
-g_legend<-function(a.gplot){
-  tmp <- ggplot_gtable(ggplot_build(a.gplot))
-  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
-  legend <- tmp$grobs[[leg]]
-  legend
-}
-
-a2 <- ggplot(plotdat, aes(x=VT_FC, y=SUV4060_FC_WB, colour=Genotype)) + 
-  geom_point() + theme_bw() +
-  scale_color_brewer('Genotype', palette = 'Set1')
-
-genlegend <- g_legend(a2)
-
-layout <- rbind(c(NA, 7, 8, 9 ),
-                c(1, 2, 3, 9),
-                c(4, 5, 6, 9))
-
-gridExtra::grid.arrange(grobs=list(e,a,b,f,c,d,g,h, genlegend), layout_matrix=layout, widths=c(1,4,4,2), heights=c(1,4,5))
-```
-
-![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-23-1.png)
-
-``` r
-alabel <- textGrob(label = expression(paste('MA1 FC ',V[T])))
-blabel <- textGrob(label = expression(paste('FC ',SUV[40-60])))
-
-Vta <- ggplot(plotdat, aes(x=VT_FC, y=VT_FC_MA1, colour=Genotype)) + 
-  geom_point() + theme_blog() + 
-  labs(x=expression(paste('2TCM Frontal Cortex ',V[T])),
-       y=expression(paste('MA1 Frontal Cortex ',V[T]))) +
-  theme(axis.title.y=element_blank(),
-        axis.title.x=element_blank(),
-        plot.background = element_rect(fill = "white")) +
-  scale_y_continuous(breaks=seq(1,8,by=0.5)) +
-  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F) +
-  geom_abline(slope = 1, linetype='dashed')
-
-Vtb <- ggplot(plotdat, aes(x=VT_FC, y=SUV_FC, colour=Genotype)) + 
-  geom_point() + theme_blog() + 
-  labs(x=expression(paste('2TCM Frontal Cortex ',V[T])),
-       y=expression(paste('Frontal Cortex ',SUVV[40-60]))) +
-  theme(axis.title.y=element_blank(),
-        plot.background = element_rect(fill = "white")) +
-  scale_y_continuous(breaks=seq(0.5,1.6,by=0.1)) +
-  scale_color_brewer(palette = 'Set1') + geom_smooth(method="lm", se=F)
-
-layout2 <- rbind(c(3, 1, 5),
-                 c(4, 2, 5))
-
-grid.arrange(grobs=list(Vta, Vtb, alabel, blabel, genlegend), layout_matrix=layout2, widths=c(2,4,2), heights=c(4,5))
-```
-
-![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-24-1.png)
+Included Participants
+---------------------
 
 ``` r
 longdat_showFits <- longdat %>%
@@ -1947,13 +2476,14 @@ fitLabels <- unique(allFits$PET)
 marrangeGrob(allFits$Fit, nrow=2, ncol=2, top=quote(paste('PET: ', PETs[g])))
 ```
 
-![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-1.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-2.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-3.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-4.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-5.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-6.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-7.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-8.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-9.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-10.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-11.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-12.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-13.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-14.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-15.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-16.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-17.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-18.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-19.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-20.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-21.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-25-22.png)
+![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-1.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-2.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-3.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-4.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-5.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-6.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-7.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-8.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-9.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-10.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-11.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-12.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-13.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-14.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-15.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-16.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-17.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-18.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-19.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-20.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-21.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-22.png)
 
-And the excluded participant:
+Excluded Participant
+--------------------
 
 ``` r
 fitLabels_excl <- unique(allFits_excluded$PET)
 marrangeGrob(allFits_excluded$Fit, nrow=2, ncol=2, top=quote(paste('PET: ', fitLabels_excl[g])))
 ```
 
-![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-1.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-26-2.png)
+![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-27-1.png)![](ModellingAnalysis_files/figure-markdown_github/unnamed-chunk-27-2.png)
